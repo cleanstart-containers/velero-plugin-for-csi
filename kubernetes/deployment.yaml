@@ -1,0 +1,410 @@
+# Velero Plugin for CSI - Test Deployment
+# This deployment demonstrates how to use the velero-plugin-for-csi as an init container
+# to copy the plugin binary to a shared volume for use with Velero
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: velero-plugin-csi-test
+  labels:
+    app: velero-plugin-for-csi
+---
+# ServiceAccount for the test deployment
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: velero-plugin-csi-test
+  namespace: velero-plugin-csi-test
+  labels:
+    app: velero-plugin-for-csi
+---
+# Deployment that uses the plugin as an init container
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: velero-plugin-csi-test
+  namespace: velero-plugin-csi-test
+  labels:
+    app: velero-plugin-for-csi
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: velero-plugin-for-csi
+  template:
+    metadata:
+      labels:
+        app: velero-plugin-for-csi
+    spec:
+      serviceAccountName: velero-plugin-csi-test
+      # Init container to copy the plugin binary
+      initContainers:
+      - name: velero-plugin-for-csi
+        image: cleanstart/velero-plugin-for-csi:latest-dev
+        imagePullPolicy: IfNotPresent
+        # The entrypoint is: /bin/cp-plugin /plugins/velero-plugin-for-csi /target/velero-plugin-for-csi
+        # This copies the plugin from /plugins/ to /target/
+        volumeMounts:
+        - name: plugins
+          mountPath: /target
+        env:
+        - name: SSL_CERT_FILE
+          value: /etc/ssl/certs/ca-certificates.crt
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 1000
+          readOnlyRootFilesystem: false
+      # Main container to verify the plugin was copied
+      containers:
+      - name: plugin-verifier
+        image: busybox:latest
+        command: ["/bin/sh"]
+        args:
+        - -c
+        - |
+          echo "=== Velero Plugin for CSI Verification ==="
+          echo ""
+          echo "Checking if plugin binary exists..."
+          if [ -f /plugins/velero-plugin-for-csi ]; then
+            echo "✅ Plugin binary found at /plugins/velero-plugin-for-csi"
+            echo ""
+            echo "Plugin file details:"
+            ls -lh /plugins/velero-plugin-for-csi
+            echo ""
+            echo "File type verification:"
+            # Check ELF magic bytes (7f 45 4c 46 = ELF)
+            MAGIC=$(head -c 4 /plugins/velero-plugin-for-csi | hexdump -C | head -1)
+            if echo "$MAGIC" | grep -q "7f 45 4c 46"; then
+              echo "✅ ELF 64-bit LSB executable detected (magic bytes: 7f 45 4c 46)"
+            else
+              echo "⚠️  File type verification: $MAGIC"
+              echo "   (Expected ELF magic bytes: 7f 45 4c 46)"
+            fi
+            echo ""
+            echo "Plugin binary is executable: $([ -x /plugins/velero-plugin-for-csi ] && echo 'Yes' || echo 'No')"
+            echo ""
+            echo "✅ Plugin verification successful!"
+          else
+            echo "❌ Plugin binary not found at /plugins/velero-plugin-for-csi"
+            echo "Listing /plugins directory:"
+            ls -la /plugins/
+            exit 1
+          fi
+          echo ""
+          echo "Plugin is ready for use with Velero."
+          echo "Sleeping to keep container running for inspection..."
+          sleep infinity
+        volumeMounts:
+        - name: plugins
+          mountPath: /plugins
+          readOnly: true
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+      volumes:
+      - name: plugins
+        emptyDir: {}
+---
+# Service to expose the test deployment (optional, for debugging)
+apiVersion: v1
+kind: Service
+metadata:
+  name: velero-plugin-csi-test
+  namespace: velero-plugin-csi-test
+  labels:
+    app: velero-plugin-for-csi
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: velero-plugin-for-csi
+---
+# Pod for manual testing (can be used to test the plugin copy functionality)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: velero-plugin-csi-manual-test
+  namespace: velero-plugin-csi-test
+  labels:
+    app: velero-plugin-for-csi
+    test: manual
+spec:
+  serviceAccountName: velero-plugin-csi-test
+  restartPolicy: Never
+  # Init container to copy the plugin
+  initContainers:
+  - name: copy-plugin
+    image: cleanstart/velero-plugin-for-csi:latest-dev
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+    - name: plugins
+      mountPath: /target
+    env:
+    - name: SSL_CERT_FILE
+      value: /etc/ssl/certs/ca-certificates.crt
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      runAsNonRoot: true
+      runAsUser: 1000
+      readOnlyRootFilesystem: false
+  # Container to inspect the plugin
+  containers:
+  - name: inspector
+    image: busybox:latest
+    command: ["/bin/sh"]
+    args:
+    - -c
+    - |
+      echo "=== Manual Plugin Test ==="
+      echo ""
+      echo "Plugin location: /plugins/velero-plugin-for-csi"
+      echo ""
+      if [ -f /plugins/velero-plugin-for-csi ]; then
+        echo "✅ Plugin successfully copied!"
+        echo ""
+        echo "File information:"
+        ls -lh /plugins/velero-plugin-for-csi
+        echo ""
+        echo "File type verification:"
+        # Check ELF magic bytes (7f 45 4c 46 = ELF)
+        MAGIC=$(head -c 4 /plugins/velero-plugin-for-csi | hexdump -C | head -1)
+        if echo "$MAGIC" | grep -q "7f 45 4c 46"; then
+          echo "✅ ELF 64-bit LSB executable detected (magic bytes: 7f 45 4c 46)"
+        else
+          echo "⚠️  File type verification: $MAGIC"
+          echo "   (Expected ELF magic bytes: 7f 45 4c 46)"
+        fi
+        echo ""
+        echo "First 100 bytes (hexdump):"
+        head -c 100 /plugins/velero-plugin-for-csi | hexdump -C
+        echo ""
+        echo "✅ Test completed successfully!"
+      else
+        echo "❌ Plugin not found!"
+        echo "Contents of /plugins:"
+        ls -la /plugins/
+        exit 1
+      fi
+    volumeMounts:
+    - name: plugins
+      mountPath: /plugins
+      readOnly: true
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "200m"
+        memory: "128Mi"
+  volumes:
+  - name: plugins
+    emptyDir: {}
+
+---
+# ============================================================================
+# INTEGRATION EXAMPLES - OPTIONAL - For Production Use Only
+# ============================================================================
+# These examples are for reference when integrating with actual Velero.
+# They are NOT part of the test deployment above.
+# To use these, extract the relevant sections and apply separately.
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Option 1: Init Container Snippet (for modifying existing Velero deployment)
+# ----------------------------------------------------------------------------
+# Add this to your existing Velero deployment spec:
+# 
+# spec:
+#   template:
+#     spec:
+#       initContainers:
+#       - name: velero-plugin-for-csi
+#         image: cleanstart/velero-plugin-for-csi:latest-dev
+#         imagePullPolicy: IfNotPresent
+#         volumeMounts:
+#         - name: plugins
+#           mountPath: /target
+#         env:
+#         - name: SSL_CERT_FILE
+#           value: /etc/ssl/certs/ca-certificates.crt
+#         securityContext:
+#           allowPrivilegeEscalation: false
+#           capabilities:
+#             drop:
+#             - ALL
+#           runAsNonRoot: true
+#           runAsUser: 1000
+#       
+#       containers:
+#       - name: velero
+#         # ... existing configuration ...
+#         volumeMounts:
+#         # ... existing volume mounts ...
+#         - name: plugins
+#           mountPath: /plugins
+#       
+#       volumes:
+#       # ... existing volumes ...
+#       - name: plugins
+#         emptyDir: {}
+
+---
+# ----------------------------------------------------------------------------
+# Option 2: Complete Velero Deployment with CSI Plugin
+# ----------------------------------------------------------------------------
+# NOTE: Commented out to prevent accidental deployment
+# Uncomment and apply separately when ready to use with Velero
+#
+# apiVersion: v1
+# kind: Namespace
+# metadata:
+#   name: velero
+#   labels:
+#     app: velero
+# ---
+# apiVersion: v1
+# kind: ServiceAccount
+# metadata:
+#   name: velero
+#   namespace: velero
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: velero
+#   namespace: velero
+#   labels:
+#     app: velero
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: velero
+#   template:
+#     metadata:
+#       labels:
+#         app: velero
+#     spec:
+#       serviceAccountName: velero
+#       # Init container to copy the plugin
+#       initContainers:
+#       - name: velero-plugin-for-csi
+#         image: cleanstart/velero-plugin-for-csi:latest-dev
+#         imagePullPolicy: IfNotPresent
+#         volumeMounts:
+#         - name: plugins
+#           mountPath: /target
+#         env:
+#         - name: SSL_CERT_FILE
+#           value: /etc/ssl/certs/ca-certificates.crt
+#         securityContext:
+#           allowPrivilegeEscalation: false
+#           capabilities:
+#             drop:
+#             - ALL
+#           runAsNonRoot: true
+#           runAsUser: 1000
+#       
+#       # Main Velero container
+#       containers:
+#       - name: velero
+#         image: velero/velero:latest
+#         command:
+#         - /velero
+#         args:
+#         - server
+#         env:
+#         - name: VELERO_NAMESPACE
+#           valueFrom:
+#             fieldRef:
+#               fieldPath: metadata.namespace
+#         volumeMounts:
+#         - name: plugins
+#           mountPath: /plugins
+#         - name: cloud-credentials
+#           mountPath: /credentials
+#           readOnly: true
+#         resources:
+#           requests:
+#             cpu: 500m
+#             memory: 128Mi
+#           limits:
+#             cpu: 1000m
+#             memory: 256Mi
+#       
+#       # Volumes
+#       volumes:
+#       - name: plugins
+#         emptyDir: {}
+#       - name: cloud-credentials
+#         secret:
+#           secretName: cloud-credentials
+
+---
+# ----------------------------------------------------------------------------
+# Option 3: Helm Values (values.yaml)
+# ----------------------------------------------------------------------------
+# Save this as values.yaml and use with: helm install velero vmware-tanzu/velero -f values.yaml
+#
+# initContainers:
+#   - name: velero-plugin-for-csi
+#     image: cleanstart/velero-plugin-for-csi:latest-dev
+#     imagePullPolicy: IfNotPresent
+#     volumeMounts:
+#     - name: plugins
+#       mountPath: /target
+#     env:
+#     - name: SSL_CERT_FILE
+#       value: /etc/ssl/certs/ca-certificates.crt
+#     securityContext:
+#       allowPrivilegeEscalation: false
+#       capabilities:
+#         drop:
+#         - ALL
+#       runAsNonRoot: true
+#       runAsUser: 1000
+#
+# extraVolumes:
+#   - name: plugins
+#     emptyDir: {}
+#
+# extraVolumeMounts:
+#   - name: plugins
+#     mountPath: /plugins
+
+---
+# ----------------------------------------------------------------------------
+# VolumeSnapshotLocation Example
+# ----------------------------------------------------------------------------
+# NOTE: Commented out - requires CSI driver and Velero CRDs
+# Uncomment when ready to use with actual Velero deployment
+#
+# apiVersion: velero.io/v1
+# kind: VolumeSnapshotLocation
+# metadata:
+#   name: csi-snapshot-location
+#   namespace: velero
+# spec:
+#   provider: velero.io/csi
+#   config:
+#     # Configure based on your CSI driver
+#     # Example for AWS EBS CSI driver:
+#     # snapshotClass: csi-aws-vsc
+#     # Example for GCE PD CSI driver:
+#     # snapshotClass: csi-gce-pd-snapshot-class
+
