@@ -4,7 +4,7 @@ A containerized version of the Velero Plugin for CSI that enables Velero to crea
 
 **📌 CleanStart Foundation:** Security-hardened, minimal base OS designed for enterprise containerized environments.
 
-**Image Path:** `cleanstart/velero-plugin-for-csi`
+**Image Path:** `ghcr.io/cleanstart-containers/velero-plugin-for-csi`
 
 **Registry:** CleanStart Registry
 
@@ -56,7 +56,7 @@ CleanStart images are built on secure, minimal base operating systems and optimi
 
 ## 🖼️ Image Information
 
-**Image Name:** `cleanstart/velero-plugin-for-csi:latest-dev`
+**Image Name:** `ghcr.io/cleanstart-containers/velero-plugin-for-csi:latest-dev`
 
 **Image Details:**
 - **Base Architecture**: `amd64`
@@ -116,15 +116,15 @@ To use this plugin in production, you need:
 
 ### Pull Commands
 ```bash
-docker pull cleanstart/velero-plugin-for-csi:latest
-docker pull cleanstart/velero-plugin-for-csi:latest-dev
+docker pull ghcr.io/cleanstart-containers/velero-plugin-for-csi:latest
+docker pull ghcr.io/cleanstart-containers/velero-plugin-for-csi:latest-dev
 ```
 
 ### Run Commands
 
 Basic test:
 ```bash
-docker run -it --name velero-plugin-for-csi-test cleanstart/velero-plugin-for-csi:latest-dev
+docker run -it --name velero-plugin-for-csi-test ghcr.io/cleanstart-containers/velero-plugin-for-csi:latest-dev
 ```
 
 Production deployment:
@@ -133,7 +133,7 @@ docker run -d --name velero-plugin-for-csi-prod \
   --read-only \
   --security-opt=no-new-privileges \
   --user 1000:1000 \
-  cleanstart/velero-plugin-for-csi:latest
+  ghcr.io/cleanstart-containers/velero-plugin-for-csi:latest
 ```
 
 ### Testing
@@ -186,8 +186,8 @@ CleanStart images support multiple architectures to ensure compatibility across 
 
 ### Architecture-based Pull Commands
 ```bash
-docker pull --platform linux/amd64 cleanstart/velero-plugin-for-csi:latest
-docker pull --platform linux/arm64 cleanstart/velero-plugin-for-csi:latest
+docker pull --platform linux/amd64 ghcr.io/cleanstart-containers/velero-plugin-for-csi:latest
+docker pull --platform linux/arm64 ghcr.io/cleanstart-containers/velero-plugin-for-csi:latest
 ```
 
 ---
