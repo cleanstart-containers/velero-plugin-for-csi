@@ -201,16 +201,21 @@ This container is designed to work with Velero and requires a CSI driver to be i
 
 ---
 
-## Resources
-
-- **Official Documentation:** https://velero.io/docs/
-- **Velero CSI Plugin Documentation:** https://github.com/vmware-tanzu/velero-plugin-for-csi
-- **Provenance / SBOM / Signature:** https://images.cleanstart.com/images/velero-plugin-for-csi
-- **Docker Hub:** https://hub.docker.com/r/cleanstart/velero-plugin-for-csi
-- **CleanStart All Images:** https://images.cleanstart.com
-- **CleanStart Community Images:** https://hub.docker.com/u/cleanstart
-
----
+## Documentation Resources
+Essential links and resources for further information
+ 
+**CleanStart Images**: https://images.cleanstart.com/
+ 
+**Community Images**:
+**Docker Hub**: https://hub.docker.com/u/cleanstart<br>
+**GitHub**: https://github.com/cleanstart-containers<br>
+**AWS ECR Public Gallery**: https://gallery.ecr.aws/cleanstart/
+ 
+**Presence on Social Media**:
+**Community**: https://www.linkedin.com/groups/18324021/<br>
+**YouTube**: https://www.youtube.com/@CleanStartOfficial<br>
+ 
+**Contribute to Container Use Cases**: https://github.com/cleanstart-dev/cleanstart-use-cases/
 
 ## Disclaimer & License
 
